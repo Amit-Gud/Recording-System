@@ -1,0 +1,28 @@
+[package]
+name = "recording-system-client"
+version = "1.0.0"
+description = "Recording System Client"
+authors = []
+edition = "2021"
+
+[build-dependencies]
+tauri-build = { version = "1.5", features = [] }
+
+[dependencies]
+tauri = { version = "1.6", features = [
+    "system-tray",
+    "icon-ico",
+    "shell-open",
+    "window-hide",
+    "window-show",
+    "window-set-focus",
+] }
+serde       = { version = "1", features = ["derive"] }
+serde_json  = "1"
+
+[profile.release]
+panic = "abort"   # Smaller binary
+codegen-units = 1
+lto = true
+opt-level = "s"   # Optimize for size
+strip = true
