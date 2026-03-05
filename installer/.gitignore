@@ -1,0 +1,4 @@
+# Build artifacts — not committed to source control
+publish/
+tools/
+dist/

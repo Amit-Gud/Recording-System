@@ -26,6 +26,12 @@ public sealed class AgentConfig
     /// <summary>Target H.264 encode bitrate in kbps.</summary>
     public int VideoBitrateKbps { get; set; } = 500;
 
+    /// <summary>
+    /// Full path to ffmpeg.exe. Defaults to "ffmpeg" (assumes it is on PATH).
+    /// The installer sets this to the bundled binary inside the install directory.
+    /// </summary>
+    public string FfmpegPath { get; set; } = "ffmpeg";
+
     /// <summary>Resolved agent ID — machine name fallback applied at startup.</summary>
     public string ResolvedAgentId => string.IsNullOrWhiteSpace(AgentId)
         ? Environment.MachineName

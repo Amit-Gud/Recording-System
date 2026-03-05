@@ -25,7 +25,8 @@ public sealed class FfmpegEncoder : IDisposable
     /// Absolute path pattern for output segments.
     /// Must end with %Y%m%d_%H%M%S.ts, e.g. C:\...\buffer\segments\seg_%Y%m%d_%H%M%S.ts
     /// </param>
-    public void Start(int width, int height, int fps, int bitrateKbps, string rtspUrl, string segmentPattern)
+    public void Start(int width, int height, int fps, int bitrateKbps,
+        string rtspUrl, string segmentPattern, string ffmpegPath = "ffmpeg")
     {
         // The tee muxer outputs simultaneously to RTSP and segmented files.
         // Each output can have per-muxer options in [brackets].
@@ -35,7 +36,7 @@ public sealed class FfmpegEncoder : IDisposable
 
         var psi = new ProcessStartInfo
         {
-            FileName         = "ffmpeg",
+            FileName         = ffmpegPath,
             UseShellExecute  = false,
             RedirectStandardInput = true,
             CreateNoWindow   = true,

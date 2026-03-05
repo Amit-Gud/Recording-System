@@ -178,7 +178,8 @@ public sealed class Worker : BackgroundService
             _config.TargetFps,
             _config.VideoBitrateKbps,
             rtspUrl,
-            segmentPattern);
+            segmentPattern,
+            _config.FfmpegPath);
 
         _logger.LogInformation("[agent] FFmpeg started → RTSP: {Rtsp}", rtspUrl);
     }
