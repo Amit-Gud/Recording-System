@@ -1,0 +1,33 @@
+# mediamtx configuration
+# Agents connect via RTSP:   rtsp://server:8554/{agent_id}
+# Clients receive via WebRTC: http://server:8889/{agent_id}
+# Recording is handled by ingest-service, not mediamtx.
+
+logLevel: info
+logDestinations: [stdout]
+
+# RTSP — agents push their H.264 stream here
+rtsp: yes
+rtspAddress: :8554
+rtspEncryption: "no"
+
+# WebRTC — React client receives live stream here
+webrtc: yes
+webrtcAddress: :8889
+
+# HLS built-in disabled — replay-service handles HLS from stored segments
+hls: no
+
+# RTMP disabled
+rtmp: no
+
+# SRT disabled
+srt: no
+
+# No authentication — internal network only
+authMethod: "no"
+
+# Accept any path (one per agent_id)
+paths:
+  all:
+    record: no

@@ -1,0 +1,139 @@
+services:
+
+  # ── Infrastructure ────────────────────────────────────────────────
+
+  nats:
+    image: nats:2.10-alpine
+    restart: unless-stopped
+    ports:
+      - "4222:4222"
+
+  postgres:
+    image: postgres:15-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER:     ${POSTGRES_USER:-recording}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-recording}
+      POSTGRES_DB:       ${POSTGRES_DB:-recordings}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-recording}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # ── Media Gateway (live WebRTC) ───────────────────────────────────
+
+  stream-service:
+    image: bluenviron/mediamtx:latest
+    restart: unless-stopped
+    ports:
+      - "8554:8554"   # RTSP  — agents connect here
+      - "8889:8889"   # WebRTC — React client connects here
+    volumes:
+      - ./mediamtx/mediamtx.yml:/mediamtx.yml:ro
+
+  # ── API Gateway ───────────────────────────────────────────────────
+
+  api-gateway:
+    image: traefik:v3.0
+    restart: unless-stopped
+    command:
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--entrypoints.web.address=:80"
+      - "--api.dashboard=true"
+      - "--api.insecure=true"
+    ports:
+      - "80:80"
+      - "8080:8080"   # Traefik dashboard
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+
+  # ── Application Services ──────────────────────────────────────────
+
+  ingest-service:
+    build: ./ingest-service
+    restart: unless-stopped
+    environment:
+      PORT:             "8001"
+      NATS_URL:         nats://nats:4222
+      RECORDINGS_PATH:  /recordings
+    volumes:
+      - recordings:/recordings
+    depends_on:
+      nats:
+        condition: service_started
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.ingest.rule=PathPrefix(`/ingest`)"
+      - "traefik.http.routers.ingest.entrypoints=web"
+      - "traefik.http.services.ingest.loadbalancer.server.port=8001"
+
+  metadata-service:
+    build: ./metadata-service
+    restart: unless-stopped
+    environment:
+      PORT:         "8002"
+      NATS_URL:     nats://nats:4222
+      DATABASE_URL: postgres://${POSTGRES_USER:-recording}:${POSTGRES_PASSWORD:-recording}@postgres:5432/${POSTGRES_DB:-recordings}?sslmode=disable
+    depends_on:
+      postgres:
+        condition: service_healthy
+      nats:
+        condition: service_started
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.metadata.rule=PathPrefix(`/api/agents`) || PathPrefix(`/api/sessions`) || PathPrefix(`/api/segments`)"
+      - "traefik.http.routers.metadata.entrypoints=web"
+      - "traefik.http.services.metadata.loadbalancer.server.port=8002"
+
+  replay-service:
+    build: ./replay-service
+    restart: unless-stopped
+    environment:
+      PORT:            "8003"
+      RECORDINGS_PATH: /recordings
+    volumes:
+      - recordings:/recordings:ro
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.replay.rule=PathPrefix(`/hls`)"
+      - "traefik.http.routers.replay.entrypoints=web"
+      - "traefik.http.services.replay.loadbalancer.server.port=8003"
+
+  bookmarks-service:
+    build: ./bookmarks-service
+    restart: unless-stopped
+    environment:
+      PORT:         "8004"
+      DATABASE_URL: postgres://${POSTGRES_USER:-recording}:${POSTGRES_PASSWORD:-recording}@postgres:5432/${POSTGRES_DB:-recordings}?sslmode=disable
+    depends_on:
+      postgres:
+        condition: service_healthy
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.bookmarks.rule=PathPrefix(`/api/bookmarks`)"
+      - "traefik.http.routers.bookmarks.entrypoints=web"
+      - "traefik.http.services.bookmarks.loadbalancer.server.port=8004"
+
+  cleanup-service:
+    build: ./cleanup-service
+    restart: unless-stopped
+    environment:
+      DATABASE_URL:    postgres://${POSTGRES_USER:-recording}:${POSTGRES_PASSWORD:-recording}@postgres:5432/${POSTGRES_DB:-recordings}?sslmode=disable
+      RECORDINGS_PATH: /recordings
+      RETENTION_DAYS:  "${RETENTION_DAYS:-30}"
+    volumes:
+      - recordings:/recordings
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  postgres_data:
+  recordings:
